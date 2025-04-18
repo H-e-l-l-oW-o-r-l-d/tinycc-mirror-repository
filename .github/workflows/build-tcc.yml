@@ -37,14 +37,22 @@ jobs:
         run: ./configure --config-mingw32 --enable-static
 
       # 第 4 步：编译 TCC
+      # make -j4 会在根目录生成 tcc.exe 和 libtcc1.a 等，并填充 lib 和 include 目录
       - name: Build TCC
         run: make -j4
 
-      # 第 5 步 (可选)：运行测试
+      # 第 5 步：将 libtcc1.a 移动到 lib 文件夹
+      # 确保在打包前，文件位于目标位置
+      - name: Move libtcc1.a to lib directory
+        run: mv ./libtcc1.a ./lib/
+        # 可选：如果移动失败则报错退出
+        # run: mv ./libtcc1.a ./lib/ || exit 1
+
+      # 第 6 步 (可选)：运行测试
       # - name: Run tests (optional)
       #   run: make test
 
-      # 第 6 步：打包编译结果 (包含 tcc.exe, lib, include)
+      # 第 7 步：打包编译结果 (包含 tcc.exe, lib[含libtcc1.a], include)
       - name: Upload TCC artifact
         uses: actions/upload-artifact@v4
         with:
