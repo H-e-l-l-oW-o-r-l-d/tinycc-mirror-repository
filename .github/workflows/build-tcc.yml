@@ -1,24 +1,28 @@
 name: Build TinyCC
 
+# 触发工作流程的事件
 on:
   push:
-    branches: [ mob ]
+    branches: [ mob ] # 当代码被推送到 mob 分支时触发
   pull_request:
-    branches: [ mob ]
-  workflow_dispatch:
+    branches: [ mob ] # 当有 Pull Request 指向 mob 分支时触发
+  workflow_dispatch: # 允许手动从 Actions 选项卡触发
 
 jobs:
-  build-windows:
-    runs-on: windows-latest
+  build-windows: # 定义一个名为 build-windows 的 Job
+    runs-on: windows-latest # 指定运行该 Job 的虚拟机环境 (最新的 Windows Server)
 
+    # 设置默认 Shell 为 MSYS2 bash
     defaults:
       run:
         shell: msys2 {0}
 
     steps:
+      # 第 1 步：检出代码
       - name: Checkout repository code
         uses: actions/checkout@v4
 
+      # 第 2 步：设置 MSYS2 环境
       - name: Setup MSYS2 environment
         uses: msys2/setup-msys2@v2
         with:
@@ -28,21 +32,25 @@ jobs:
             mingw-w64-x86_64-gcc
             make
 
+      # 第 3 步：配置 TCC for MinGW
       - name: Configure TCC (MinGW)
         run: ./configure --config-mingw32 --enable-static
 
+      # 第 4 步：编译 TCC
       - name: Build TCC
         run: make -j4
 
+      # 第 5 步 (可选)：运行测试
       # - name: Run tests (optional)
       #   run: make test
 
-      # 更新此步骤以包含 lib 目录
-      - name: Upload TCC artifact (incl. libs)
+      # 第 6 步：打包编译结果 (包含 tcc.exe, lib, include)
+      - name: Upload TCC artifact
         uses: actions/upload-artifact@v4
         with:
-          name: tcc-windows-amd64-with-libs # 可以稍微修改名字以示区别
-          path: |                            # 使用多行指定多个路径
+          name: tcc-windows-amd64-bundle # Artifact 名称
+          path: |
             ./tcc.exe
-            ./lib                           # 直接指定 lib 目录，会包含其下所有内容
-          if-no-files-found: error
+            ./lib
+            ./include
+          if-no-files-found: error # 如果任何一个路径找不到则报错
