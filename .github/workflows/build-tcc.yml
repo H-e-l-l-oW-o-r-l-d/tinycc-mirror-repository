@@ -1,51 +1,87 @@
 name: Build TinyCC
-
 # 触发工作流程的事件
 on:
   push:
-    branches: [ mob ] # 当代码被推送到 mob 分支时触发 (TinyCC mirror 的主分支是 mob)
+    branches: [ mob ] # 当代码被推送到 mob 分支时触发
   pull_request:
     branches: [ mob ] # 当有 Pull Request 指向 mob 分支时触发
-  workflow_dispatch: # 允许手动从 Actions 选项卡触发
+  workflow_dispatch: # 允许手动触发
 
 jobs:
-  build-linux:
-    runs-on: ubuntu-22.04
+  # --- Job 1: 使用 MinGW (GCC on Windows) 编译 ---
+  build-windows-mingw:
+    runs-on: windows-latest # 指定运行环境为最新的 Windows Server
+    name: Build with MinGW (Windows) # Job 的名称
 
     steps:
       # 第 1 步：检出代码
       - name: Checkout repository code
-        uses: actions/checkout@v4 # 使用官方的 checkout action 来获取仓库代码
+        uses: actions/checkout@v4
 
-      # 第 2 步：安装编译依赖
-      # Ubuntu latest 通常自带 build-essential (包含 gcc, make 等)
-      # 但显式安装可以确保环境一致性
-      - name: Install build dependencies
+      # 第 2 步：设置 MSYS2 环境 (用于安装和使用 MinGW)
+      - name: Set up MSYS2 and MinGW
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64   # 使用 64 位的 MinGW 环境
+          update: true       # 更新 MSYS2 基础包
+          install: >-        # 在 MSYS2 环境中安装编译所需的包
+            mingw-w64-x86_64-gcc
+            make
+
+      # 第 3 步：使用 MinGW 编译 TCC
+      # 需要进入 win32 目录并使用特定的 Makefile
+      - name: Build TCC using MinGW
+        shell: msys2 {0} # 强制后续命令在 MSYS2 shell 中运行
         run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential gcc make
+          echo "Current directory: $(pwd)"
+          ls # 列出根目录内容，确认 win32 目录存在
+          cd win32
+          echo "Current directory: $(pwd)"
+          ls # 列出 win32 目录内容
+          make -f Makefile.mingw  # 使用 MinGW 的 Makefile 进行编译
+          echo "Build finished. Checking for tcc.exe in parent directory..."
+          ls .. # 查看上级目录（通常 tcc.exe 会生成在那里）
 
-      # 第 3 步：配置 TCC
-      # 运行 configure 脚本来生成 Makefile
-      - name: Configure TCC
-        run: ./configure
-
-      # 第 4 步：编译 TCC
-      # 运行 make 命令来编译源代码
-      - name: Build TCC
-        run: make
-
-      # 第 5 步 (可选)：运行测试
-      # 运行 make test 来执行 TCC 的测试套件
-      - name: Run tests (optional)
-        run: make test
-
-      # 第 6 步 (可选)：打包编译结果
-      # 将编译后的 tcc 可执行文件上传为 artifact (产物)
-      # 这样你就可以在 Actions 运行结束后下载它
-      - name: Upload TCC artifact
+      # 第 4 步：上传编译产物 (tcc.exe)
+      - name: Upload TCC artifact (MinGW)
         uses: actions/upload-artifact@v4
         with:
-          name: tcc-linux-amd64 # Artifact 的名称
-          path: ./tcc          # 需要上传的文件路径 (make 后 tcc 可执行文件通常在根目录)
-          if-no-files-found: error # 如果找不到 tcc 文件则报错
+          name: tcc-windows-mingw-amd64 # Artifact 名称
+          path: ./tcc.exe              # tcc.exe 通常生成在仓库根目录
+                                       # 如果上一步显示 tcc.exe 在 win32 目录，则改为 ./win32/tcc.exe
+          if-no-files-found: error     # 如果找不到文件则报错
+
+  # --- Job 2: 使用 MSVC (Microsoft Visual C++) 编译 ---
+  build-windows-msvc:
+    runs-on: windows-latest # 指定运行环境为最新的 Windows Server
+    name: Build with MSVC (Windows) # Job 的名称
+
+    steps:
+      # 第 1 步：检出代码
+      - name: Checkout repository code
+        uses: actions/checkout@v4
+
+      # 第 2 步：使用 MSVC (nmake) 编译 TCC
+      # windows-latest Runner 通常已包含 MSVC 构建工具 (nmake)
+      # 需要进入 win32 目录并使用特定的 Makefile
+      - name: Build TCC using MSVC (nmake)
+        shell: cmd # 使用 Windows 的 cmd shell
+        run: |
+          echo "Current directory: %CD%"
+          dir # 列出根目录内容
+          cd win32
+          echo "Current directory: %CD%"
+          dir # 列出 win32 目录内容
+          rem 使用 nmake 和 MSVC 的 Makefile
+          nmake /f Makefile.msvc
+          echo "Build finished. Checking for tcc.exe in parent directory..."
+          dir ..
+
+      # 第 3 步：上传编译产物 (tcc.exe)
+      - name: Upload TCC artifact (MSVC)
+        uses: actions/upload-artifact@v4
+        with:
+          name: tcc-windows-msvc-amd64 # Artifact 名称
+          path: ./tcc.exe              # tcc.exe 通常生成在仓库根目录
+                                       # 如果上一步显示 tcc.exe 在 win32 目录，则改为 ./win32/tcc.exe
+          if-no-files-found: error     # 如果找不到文件则报错
