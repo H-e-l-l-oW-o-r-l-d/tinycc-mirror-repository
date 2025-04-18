@@ -1,0 +1,51 @@
+name: Build TinyCC
+
+# 触发工作流程的事件
+on:
+  push:
+    branches: [ mob ] # 当代码被推送到 mob 分支时触发 (TinyCC mirror 的主分支是 mob)
+  pull_request:
+    branches: [ mob ] # 当有 Pull Request 指向 mob 分支时触发
+  workflow_dispatch: # 允许手动从 Actions 选项卡触发
+
+jobs:
+  build-linux: # 定义一个名为 build-linux 的 Job (任务)
+    runs-on: ubuntu-latest # 指定运行该 Job 的虚拟机环境 (最新的 Ubuntu)
+
+    steps:
+      # 第 1 步：检出代码
+      - name: Checkout repository code
+        uses: actions/checkout@v4 # 使用官方的 checkout action 来获取仓库代码
+
+      # 第 2 步：安装编译依赖
+      # Ubuntu latest 通常自带 build-essential (包含 gcc, make 等)
+      # 但显式安装可以确保环境一致性
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential gcc make
+
+      # 第 3 步：配置 TCC
+      # 运行 configure 脚本来生成 Makefile
+      - name: Configure TCC
+        run: ./configure
+
+      # 第 4 步：编译 TCC
+      # 运行 make 命令来编译源代码
+      - name: Build TCC
+        run: make
+
+      # 第 5 步 (可选)：运行测试
+      # 运行 make test 来执行 TCC 的测试套件
+      - name: Run tests (optional)
+        run: make test
+
+      # 第 6 步 (可选)：打包编译结果
+      # 将编译后的 tcc 可执行文件上传为 artifact (产物)
+      # 这样你就可以在 Actions 运行结束后下载它
+      - name: Upload TCC artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tcc-linux-amd64 # Artifact 的名称
+          path: ./tcc          # 需要上传的文件路径 (make 后 tcc 可执行文件通常在根目录)
+          if-no-files-found: error # 如果找不到 tcc 文件则报错
