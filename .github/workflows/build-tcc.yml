@@ -44,7 +44,9 @@ jobs:
       # 第 5 步：将 libtcc1.a 移动到 lib 文件夹
       # 确保在打包前，文件位于目标位置
       - name: Move libtcc1.a to lib directory
-        run: mv ./libtcc1.a ./lib/
+        run: |
+          find lib/ -mindepth 1 -delete
+          mv libtcc1.a lib/
         # 可选：如果移动失败则报错退出
         # run: mv ./libtcc1.a ./lib/ || exit 1
 
